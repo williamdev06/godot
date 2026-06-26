@@ -435,6 +435,7 @@ public:
 		int lightmap_slice_index;
 		uint32_t lightmap_cull_index;
 		Vector<Color> lightmap_sh; //spherical harmonic
+		RSE::LightmapBlendMode lightmap_capture_blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE; //how the captured SH is blended with the environment ambient
 
 		AABB aabb;
 		AABB transformed_aabb;

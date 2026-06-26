@@ -1024,6 +1024,7 @@ void RenderForwardClustered::_fill_render_list(RenderListType p_render_list, con
 						lcd.sh[j * 4 + 2] = src_capture[j].b;
 						lcd.sh[j * 4 + 3] = src_capture[j].a;
 					}
+					lcd.flags = uint32_t(inst->lightmap_sh->blend_mode) << RendererRD::LightStorage::LIGHTMAP_FLAGS_BLEND_MODE_SHIFT;
 					flags |= INSTANCE_DATA_FLAG_USE_LIGHTMAP_CAPTURE;
 					inst->gi_offset_cache = lightmap_captures_used;
 					lightmap_captures_used++;
@@ -1233,7 +1234,10 @@ void RenderForwardClustered::_setup_lightmaps(const RenderDataRD *p_render_data,
 
 		// Exposure.
 		scene_state.lightmaps[i].exposure_normalization = 1.0;
+		// The lightmap flags field packs the shadowmask mode (low bits) and the
+		// blend mode (bit LIGHTMAP_FLAGS_BLEND_MODE_SHIFT) together.
 		scene_state.lightmaps[i].flags = light_storage->lightmap_get_shadowmask_mode(lightmap);
+		scene_state.lightmaps[i].flags |= uint32_t(light_storage->lightmap_get_blend_mode(lightmap)) << RendererRD::LightStorage::LIGHTMAP_FLAGS_BLEND_MODE_SHIFT;
 		if (p_render_data->camera_attributes.is_valid()) {
 			float baked_exposure = light_storage->lightmap_get_baked_exposure_normalization(lightmap);
 			float enf = RSG::camera_attributes->camera_attributes_get_exposure_normalization_factor(p_render_data->camera_attributes);
@@ -4943,13 +4947,14 @@ void RenderForwardClustered::GeometryInstanceForwardClustered::set_use_lightmap(
 	_mark_dirty();
 }
 
-void RenderForwardClustered::GeometryInstanceForwardClustered::set_lightmap_capture(const Color *p_sh9) {
+void RenderForwardClustered::GeometryInstanceForwardClustered::set_lightmap_capture(const Color *p_sh9, RSE::LightmapBlendMode p_blend_mode) {
 	if (p_sh9) {
 		if (lightmap_sh == nullptr) {
 			lightmap_sh = RenderForwardClustered::get_singleton()->geometry_instance_lightmap_sh.alloc();
 		}
 
 		memcpy(lightmap_sh->sh, p_sh9, sizeof(Color) * 9);
+		lightmap_sh->blend_mode = p_blend_mode;
 	} else {
 		if (lightmap_sh != nullptr) {
 			RenderForwardClustered::get_singleton()->geometry_instance_lightmap_sh.free(lightmap_sh);

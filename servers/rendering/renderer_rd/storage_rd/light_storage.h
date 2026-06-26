@@ -53,6 +53,14 @@ public:
 		SHADOW_INVALID = 0xFFFFFFFF
 	};
 
+	// Bit layout of the per-lightmap "flags" field uploaded to the scene shaders.
+	// The low bits hold the shadowmask mode, the blend mode is packed above it.
+	// Keep in sync with the matching LIGHTMAP_FLAGS_* defines in the scene shaders.
+	enum LightmapFlags : uint32_t {
+		LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK = 0xFF,
+		LIGHTMAP_FLAGS_BLEND_MODE_SHIFT = 8,
+	};
+
 private:
 	static LightStorage *singleton;
 	uint32_t max_cluster_elements = 512;
@@ -352,6 +360,7 @@ private:
 		RID light_texture;
 		RID shadow_texture;
 		RSE::ShadowmaskMode shadowmask_mode = RSE::SHADOWMASK_MODE_NONE;
+		RSE::LightmapBlendMode blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE;
 		bool uses_spherical_harmonics = false;
 		bool interior = false;
 		AABB bounds = AABB(Vector3(), Vector3(1, 1, 1));
@@ -1037,6 +1046,9 @@ public:
 	virtual void lightmap_set_shadowmask_textures(RID p_lightmap, RID p_shadow) override;
 	virtual RSE::ShadowmaskMode lightmap_get_shadowmask_mode(RID p_lightmap) override;
 	virtual void lightmap_set_shadowmask_mode(RID p_lightmap, RSE::ShadowmaskMode p_mode) override;
+
+	virtual RSE::LightmapBlendMode lightmap_get_blend_mode(RID p_lightmap) override;
+	virtual void lightmap_set_blend_mode(RID p_lightmap, RSE::LightmapBlendMode p_mode) override;
 
 	virtual float lightmap_get_probe_capture_update_speed() const override {
 		return lightmap_probe_capture_update_speed;

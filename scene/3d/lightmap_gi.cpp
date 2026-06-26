@@ -234,6 +234,14 @@ LightmapGIData::ShadowmaskMode LightmapGIData::get_shadowmask_mode() const {
 	return (ShadowmaskMode)RS::get_singleton()->lightmap_get_shadowmask_mode(lightmap);
 }
 
+void LightmapGIData::update_blend_mode(BlendMode p_mode) {
+	RS::get_singleton()->lightmap_set_blend_mode(lightmap, (RSE::LightmapBlendMode)p_mode);
+}
+
+LightmapGIData::BlendMode LightmapGIData::get_blend_mode() const {
+	return (BlendMode)RS::get_singleton()->lightmap_get_blend_mode(lightmap);
+}
+
 void LightmapGIData::set_capture_data(const AABB &p_bounds, bool p_interior, const PackedVector3Array &p_points, const PackedColorArray &p_point_sh, const PackedInt32Array &p_tetrahedra, const PackedInt32Array &p_bsp_tree, float p_baked_exposure, uint32_t p_lightprobe_hash) {
 	if (p_points.size()) {
 		int pc = p_points.size();
@@ -383,6 +391,9 @@ void LightmapGIData::_bind_methods() {
 	BIND_ENUM_CONSTANT(SHADOWMASK_MODE_NONE);
 	BIND_ENUM_CONSTANT(SHADOWMASK_MODE_REPLACE);
 	BIND_ENUM_CONSTANT(SHADOWMASK_MODE_OVERLAY);
+
+	BIND_ENUM_CONSTANT(BLEND_MODE_REPLACE);
+	BIND_ENUM_CONSTANT(BLEND_MODE_MULTIPLY);
 }
 
 LightmapGIData::LightmapGIData() {
@@ -1800,6 +1811,7 @@ void LightmapGI::set_light_data(const Ref<LightmapGIData> &p_data) {
 			_assign_lightmaps();
 		}
 		light_data->update_shadowmask_mode(shadowmask_mode);
+		light_data->update_blend_mode(blend_mode);
 	}
 
 	update_gizmos();
@@ -1865,6 +1877,17 @@ void LightmapGI::set_shadowmask_mode(LightmapGIData::ShadowmaskMode p_mode) {
 
 LightmapGIData::ShadowmaskMode LightmapGI::get_shadowmask_mode() const {
 	return shadowmask_mode;
+}
+
+void LightmapGI::set_blend_mode(LightmapGIData::BlendMode p_mode) {
+	blend_mode = p_mode;
+	if (light_data.is_valid()) {
+		light_data->update_blend_mode(p_mode);
+	}
+}
+
+LightmapGIData::BlendMode LightmapGI::get_blend_mode() const {
+	return blend_mode;
 }
 
 void LightmapGI::set_use_texture_for_bounces(bool p_enable) {
@@ -2112,6 +2135,9 @@ void LightmapGI::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_shadowmask_mode", "mode"), &LightmapGI::set_shadowmask_mode);
 	ClassDB::bind_method(D_METHOD("get_shadowmask_mode"), &LightmapGI::get_shadowmask_mode);
 
+	ClassDB::bind_method(D_METHOD("set_blend_mode", "mode"), &LightmapGI::set_blend_mode);
+	ClassDB::bind_method(D_METHOD("get_blend_mode"), &LightmapGI::get_blend_mode);
+
 	ClassDB::bind_method(D_METHOD("set_use_texture_for_bounces", "use_texture_for_bounces"), &LightmapGI::set_use_texture_for_bounces);
 	ClassDB::bind_method(D_METHOD("is_using_texture_for_bounces"), &LightmapGI::is_using_texture_for_bounces);
 
@@ -2128,6 +2154,7 @@ void LightmapGI::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bounce_indirect_energy", PROPERTY_HINT_RANGE, "0,2,0.01"), "set_bounce_indirect_energy", "get_bounce_indirect_energy");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "directional"), "set_directional", "is_directional");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "shadowmask_mode", PROPERTY_HINT_ENUM, "None,Replace,Overlay"), "set_shadowmask_mode", "get_shadowmask_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "blend_mode", PROPERTY_HINT_ENUM, "Replace,Multiply"), "set_blend_mode", "get_blend_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_texture_for_bounces"), "set_use_texture_for_bounces", "is_using_texture_for_bounces");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "interior"), "set_interior", "is_interior");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_denoiser"), "set_use_denoiser", "is_using_denoiser");

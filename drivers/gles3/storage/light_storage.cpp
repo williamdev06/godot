@@ -1306,6 +1306,19 @@ void LightStorage::lightmap_set_shadowmask_mode(RID p_lightmap, RSE::ShadowmaskM
 	lightmap->shadowmask_mode = p_mode;
 }
 
+RSE::LightmapBlendMode LightStorage::lightmap_get_blend_mode(RID p_lightmap) {
+	Lightmap *lightmap = lightmap_owner.get_or_null(p_lightmap);
+	ERR_FAIL_NULL_V(lightmap, RSE::LIGHTMAP_BLEND_MODE_REPLACE);
+
+	return lightmap->blend_mode;
+}
+
+void LightStorage::lightmap_set_blend_mode(RID p_lightmap, RSE::LightmapBlendMode p_mode) {
+	Lightmap *lightmap = lightmap_owner.get_or_null(p_lightmap);
+	ERR_FAIL_NULL(lightmap);
+	lightmap->blend_mode = p_mode;
+}
+
 /* LIGHTMAP INSTANCE */
 
 RID LightStorage::lightmap_instance_create(RID p_lightmap) {

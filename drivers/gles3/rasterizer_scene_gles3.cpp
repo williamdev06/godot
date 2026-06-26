@@ -175,13 +175,14 @@ void RasterizerSceneGLES3::GeometryInstanceGLES3::set_use_lightmap(RID p_lightma
 	_mark_dirty();
 }
 
-void RasterizerSceneGLES3::GeometryInstanceGLES3::set_lightmap_capture(const Color *p_sh9) {
+void RasterizerSceneGLES3::GeometryInstanceGLES3::set_lightmap_capture(const Color *p_sh9, RSE::LightmapBlendMode p_blend_mode) {
 	if (p_sh9) {
 		if (lightmap_sh == nullptr) {
 			lightmap_sh = memnew(GeometryInstanceLightmapSH);
 		}
 
 		memcpy(lightmap_sh->sh, p_sh9, sizeof(Color) * 9);
+		lightmap_sh->blend_mode = p_blend_mode;
 	} else {
 		if (lightmap_sh != nullptr) {
 			memdelete(lightmap_sh);
@@ -3745,6 +3746,8 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 
 							material_storage->shaders.scene_shader.version_set_uniform(SceneShaderGLES3::LIGHTMAP_SHADOWMASK_MODE, (uint32_t)lm->shadowmask_mode, shader->version, instance_variant, spec_constants);
 
+							material_storage->shaders.scene_shader.version_set_uniform(SceneShaderGLES3::LIGHTMAP_BLEND_MODE, (uint32_t)lm->blend_mode, shader->version, instance_variant, spec_constants);
+
 							if (lm->shadow_texture.is_valid()) {
 								tex = GLES3::TextureStorage::get_singleton()->texture_get_texid(lm->shadow_texture);
 							} else {
@@ -3820,6 +3823,7 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 
 					} else if (inst->lightmap_sh) {
 						glUniform4fv(material_storage->shaders.scene_shader.version_get_uniform(SceneShaderGLES3::LIGHTMAP_CAPTURES, shader->version, instance_variant, spec_constants), 9, reinterpret_cast<const GLfloat *>(inst->lightmap_sh->sh));
+						material_storage->shaders.scene_shader.version_set_uniform(SceneShaderGLES3::LIGHTMAP_CAPTURE_BLEND_MODE, (uint32_t)inst->lightmap_sh->blend_mode, shader->version, instance_variant, spec_constants);
 					}
 					prev_inst = inst;
 				}

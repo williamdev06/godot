@@ -227,6 +227,14 @@ directional_lights;
 #define LIGHTMAP_SHADOWMASK_MODE_OVERLAY 2
 #define LIGHTMAP_SHADOWMASK_MODE_ONLY 3
 
+// The lightmap "flags" field packs the shadowmask mode in the low bits and the
+// blend mode above it. Keep in sync with LightStorage::LightmapFlags (C++).
+#define LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK 0xFFu
+#define LIGHTMAP_FLAGS_BLEND_MODE_SHIFT 8u
+
+#define LIGHTMAP_BLEND_MODE_REPLACE 0
+#define LIGHTMAP_BLEND_MODE_MULTIPLY 1
+
 struct Lightmap {
 	mat3 normal_xform;
 	vec2 light_texture_size;
@@ -241,6 +249,10 @@ lightmaps;
 
 struct LightmapCapture {
 	vec4 sh[9];
+	uint flags; // Packs the lightmap blend mode, matching the real-lightmap flags field.
+	uint pad0;
+	uint pad1;
+	uint pad2;
 };
 
 layout(set = 0, binding = 9, std140) restrict readonly buffer LightmapCaptures {

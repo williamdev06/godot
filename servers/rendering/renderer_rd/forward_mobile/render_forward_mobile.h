@@ -194,6 +194,8 @@ private:
 
 	struct LightmapCaptureData {
 		float sh[9 * 4];
+		uint32_t flags; // Packs the lightmap blend mode (see LightStorage::LightmapFlags).
+		uint32_t pad[3]; // Keep std140 array stride at a multiple of 16 bytes.
 	};
 
 	/* Scene state */
@@ -462,6 +464,7 @@ protected:
 
 	struct GeometryInstanceLightmapSH {
 		Color sh[9];
+		RSE::LightmapBlendMode blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE;
 	};
 
 	// Cached data for drawing surfaces
@@ -574,7 +577,7 @@ protected:
 
 		virtual void set_transform(const Transform3D &p_transform, const AABB &p_aabb, const AABB &p_transformed_aabb) override;
 		virtual void set_use_lightmap(RID p_lightmap_instance, const Rect2 &p_lightmap_uv_scale, int p_lightmap_slice_index) override;
-		virtual void set_lightmap_capture(const Color *p_sh9) override;
+		virtual void set_lightmap_capture(const Color *p_sh9, RSE::LightmapBlendMode p_blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE) override;
 
 		virtual void clear_light_instances() override;
 		virtual void pair_light_instance(const RID p_light_instance, RSE::LightType light_type, uint32_t placement_idx) override;

@@ -1705,15 +1705,44 @@ void main() {
 		);
 
 		half norm = half(scene_data.IBL_exposure_normalization);
-		ambient_light += c[0] * hvec3(lightmap_captures.data[index].sh[0].rgb) * norm;
-		ambient_light += c[1] * hvec3(lightmap_captures.data[index].sh[1].rgb) * wnormal.y * norm;
-		ambient_light += c[1] * hvec3(lightmap_captures.data[index].sh[2].rgb) * wnormal.z * norm;
-		ambient_light += c[1] * hvec3(lightmap_captures.data[index].sh[3].rgb) * wnormal.x * norm;
-		ambient_light += c[2] * hvec3(lightmap_captures.data[index].sh[4].rgb) * wnormal.x * wnormal.y * norm;
-		ambient_light += c[2] * hvec3(lightmap_captures.data[index].sh[5].rgb) * wnormal.y * wnormal.z * norm;
-		ambient_light += c[3] * hvec3(lightmap_captures.data[index].sh[6].rgb) * (half(3.0) * wnormal.z * wnormal.z - half(1.0)) * norm;
-		ambient_light += c[2] * hvec3(lightmap_captures.data[index].sh[7].rgb) * wnormal.x * wnormal.z * norm;
-		ambient_light += c[4] * hvec3(lightmap_captures.data[index].sh[8].rgb) * (wnormal.x * wnormal.x - wnormal.y * wnormal.y) * norm;
+		hvec3 capture_ambient = hvec3(0.0);
+		capture_ambient += c[0] * hvec3(lightmap_captures.data[index].sh[0].rgb) * norm;
+		capture_ambient += c[1] * hvec3(lightmap_captures.data[index].sh[1].rgb) * wnormal.y * norm;
+		capture_ambient += c[1] * hvec3(lightmap_captures.data[index].sh[2].rgb) * wnormal.z * norm;
+		capture_ambient += c[1] * hvec3(lightmap_captures.data[index].sh[3].rgb) * wnormal.x * norm;
+		capture_ambient += c[2] * hvec3(lightmap_captures.data[index].sh[4].rgb) * wnormal.x * wnormal.y * norm;
+		capture_ambient += c[2] * hvec3(lightmap_captures.data[index].sh[5].rgb) * wnormal.y * wnormal.z * norm;
+		capture_ambient += c[3] * hvec3(lightmap_captures.data[index].sh[6].rgb) * (half(3.0) * wnormal.z * wnormal.z - half(1.0)) * norm;
+		capture_ambient += c[2] * hvec3(lightmap_captures.data[index].sh[7].rgb) * wnormal.x * wnormal.z * norm;
+		capture_ambient += c[4] * hvec3(lightmap_captures.data[index].sh[8].rgb) * (wnormal.x * wnormal.x - wnormal.y * wnormal.y) * norm;
+
+		uint capture_blend_mode = (lightmap_captures.data[index].flags >> LIGHTMAP_FLAGS_BLEND_MODE_SHIFT) & LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK;
+		if (capture_blend_mode == LIGHTMAP_BLEND_MODE_MULTIPLY) {
+			// Modulate the environment ambient by the captured SH probe (e.g. baked AO / dark indirect).
+			hvec3 env_ambient = hvec3(0.0);
+			if (bool(scene_data.flags & SCENE_DATA_FLAGS_USE_AMBIENT_LIGHT)) {
+				env_ambient = hvec3(scene_data.ambient_light_color_energy.rgb);
+
+				if (sc_scene_use_ambient_cubemap()) {
+					vec3 ambient_dir = scene_data.radiance_inverse_xform * indirect_normal;
+#ifdef USE_RADIANCE_OCTMAP_ARRAY
+					float ambient_lod = vec3_to_oct_lod(dFdx(ambient_dir), dFdy(ambient_dir), scene_data_block.data.radiance_pixel_size);
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					hvec3 octmap_ambient = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ambient_uv, MAX_ROUGHNESS_LOD), ambient_lod).rgb);
+#else
+					float roughness_lod = MAX_ROUGHNESS_LOD;
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					hvec3 octmap_ambient = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), ambient_uv, roughness_lod).rgb);
+#endif //USE_RADIANCE_OCTMAP_ARRAY
+					octmap_ambient *= REFLECTION_MULTIPLIER;
+					octmap_ambient *= half(scene_data.IBL_exposure_normalization);
+					env_ambient = mix(env_ambient, octmap_ambient * half(scene_data.ambient_light_color_energy.a), half(scene_data.ambient_color_sky_mix));
+				}
+			}
+			ambient_light += env_ambient * capture_ambient;
+		} else { // LIGHTMAP_BLEND_MODE_REPLACE
+			ambient_light += capture_ambient;
+		}
 
 	} else if (bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) { // has actual lightmap
 		bool uses_sh = bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_SH_LIGHTMAP);
@@ -1722,6 +1751,10 @@ void main() {
 		vec3 uvw;
 		uvw.xy = uv2 * instances.data[draw_call.instance_index].lightmap_uv_scale.zw + instances.data[draw_call.instance_index].lightmap_uv_scale.xy;
 		uvw.z = float(slice);
+
+		// Accumulate the baked lightmap contribution separately so it can be
+		// blended with the environment ambient below (replace or multiply).
+		hvec3 lightmap_ambient = hvec3(0.0);
 
 		if (uses_sh) {
 			uvw.z *= 4.0; //SH textures use 4 times more data
@@ -1745,16 +1778,46 @@ void main() {
 			hvec3 n = hvec3(normalize(lightmaps.data[ofs].normal_xform * indirect_normal));
 			half exposure_normalization = half(lightmaps.data[ofs].exposure_normalization);
 
-			ambient_light += lm_light_l0 * exposure_normalization;
-			ambient_light += lm_light_l1n1 * n.y * lm_light_l0 * exposure_normalization * half(4.0);
-			ambient_light += lm_light_l1_0 * n.z * lm_light_l0 * exposure_normalization * half(4.0);
-			ambient_light += lm_light_l1p1 * n.x * lm_light_l0 * exposure_normalization * half(4.0);
+			lightmap_ambient += lm_light_l0 * exposure_normalization;
+			lightmap_ambient += lm_light_l1n1 * n.y * lm_light_l0 * exposure_normalization * half(4.0);
+			lightmap_ambient += lm_light_l1_0 * n.z * lm_light_l0 * exposure_normalization * half(4.0);
+			lightmap_ambient += lm_light_l1p1 * n.x * lm_light_l0 * exposure_normalization * half(4.0);
 		} else {
 			if (sc_use_lightmap_bicubic_filter()) {
-				ambient_light += hvec3(textureArray_bicubic(lightmap_textures[ofs], uvw, lightmaps.data[ofs].light_texture_size).rgb * lightmaps.data[ofs].exposure_normalization);
+				lightmap_ambient += hvec3(textureArray_bicubic(lightmap_textures[ofs], uvw, lightmaps.data[ofs].light_texture_size).rgb * lightmaps.data[ofs].exposure_normalization);
 			} else {
-				ambient_light += hvec3(textureLod(sampler2DArray(lightmap_textures[ofs], SAMPLER_LINEAR_CLAMP), uvw, 0.0).rgb * lightmaps.data[ofs].exposure_normalization);
+				lightmap_ambient += hvec3(textureLod(sampler2DArray(lightmap_textures[ofs], SAMPLER_LINEAR_CLAMP), uvw, 0.0).rgb * lightmaps.data[ofs].exposure_normalization);
 			}
+		}
+
+		uint lightmap_blend_mode = (lightmaps.data[ofs].flags >> LIGHTMAP_FLAGS_BLEND_MODE_SHIFT) & LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK;
+		if (lightmap_blend_mode == LIGHTMAP_BLEND_MODE_MULTIPLY) {
+			// Modulate the environment ambient by the baked lightmap. This lets the
+			// bake store AO / dark indirect that darkens an otherwise dynamic
+			// environment color, giving semi-dynamic lighting on static geometry.
+			hvec3 env_ambient = hvec3(0.0);
+			if (bool(scene_data.flags & SCENE_DATA_FLAGS_USE_AMBIENT_LIGHT)) {
+				env_ambient = hvec3(scene_data.ambient_light_color_energy.rgb);
+
+				if (sc_scene_use_ambient_cubemap()) {
+					vec3 ambient_dir = scene_data.radiance_inverse_xform * indirect_normal;
+#ifdef USE_RADIANCE_OCTMAP_ARRAY
+					float ambient_lod = vec3_to_oct_lod(dFdx(ambient_dir), dFdy(ambient_dir), scene_data_block.data.radiance_pixel_size);
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					hvec3 octmap_ambient = hvec3(textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ambient_uv, MAX_ROUGHNESS_LOD), ambient_lod).rgb);
+#else
+					float roughness_lod = MAX_ROUGHNESS_LOD;
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					hvec3 octmap_ambient = hvec3(textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), ambient_uv, roughness_lod).rgb);
+#endif //USE_RADIANCE_OCTMAP_ARRAY
+					octmap_ambient *= REFLECTION_MULTIPLIER;
+					octmap_ambient *= half(scene_data.IBL_exposure_normalization);
+					env_ambient = mix(env_ambient, octmap_ambient * half(scene_data.ambient_light_color_energy.a), half(scene_data.ambient_color_sky_mix));
+				}
+			}
+			ambient_light += env_ambient * lightmap_ambient;
+		} else { // LIGHTMAP_BLEND_MODE_REPLACE
+			ambient_light += lightmap_ambient;
 		}
 	}
 
@@ -1939,7 +2002,7 @@ void main() {
 
 		if (bool(instances.data[draw_call.instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
 			const uint ofs = instances.data[draw_call.instance_index].gi_offset & 0xFFFF;
-			shadowmask_mode = lightmaps.data[ofs].flags;
+			shadowmask_mode = lightmaps.data[ofs].flags & LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK;
 
 			if (shadowmask_mode != LIGHTMAP_SHADOWMASK_MODE_NONE) {
 				const uint slice = instances.data[draw_call.instance_index].gi_offset >> 16;

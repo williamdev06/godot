@@ -354,6 +354,12 @@ enum ShadowmaskMode {
 	SHADOWMASK_MODE_ONLY,
 };
 
+// How a baked lightmap is combined with the environment ambient light when applied to a surface.
+enum LightmapBlendMode {
+	LIGHTMAP_BLEND_MODE_REPLACE, // Lightmap overrides the environment ambient (legacy behavior).
+	LIGHTMAP_BLEND_MODE_MULTIPLY, // Lightmap modulates the environment ambient (bake AO / dark indirect over dynamic env).
+};
+
 /* PARTICLES API */
 
 enum ParticlesMode {

@@ -186,6 +186,7 @@ struct Lightmap {
 	Vector2i light_texture_size;
 	int32_t array_index = -1; //unassigned
 	RSE::ShadowmaskMode shadowmask_mode = RSE::SHADOWMASK_MODE_NONE;
+	RSE::LightmapBlendMode blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE;
 	PackedVector3Array points;
 	PackedColorArray point_sh;
 	PackedInt32Array tetrahedra;
@@ -753,6 +754,9 @@ public:
 	virtual void lightmap_set_shadowmask_textures(RID p_lightmap, RID p_shadow) override;
 	virtual RSE::ShadowmaskMode lightmap_get_shadowmask_mode(RID p_lightmap) override;
 	virtual void lightmap_set_shadowmask_mode(RID p_lightmap, RSE::ShadowmaskMode p_mode) override;
+
+	virtual RSE::LightmapBlendMode lightmap_get_blend_mode(RID p_lightmap) override;
+	virtual void lightmap_set_blend_mode(RID p_lightmap, RSE::LightmapBlendMode p_mode) override;
 
 	/* LIGHTMAP INSTANCE */
 

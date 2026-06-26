@@ -305,6 +305,7 @@ private:
 
 	struct GeometryInstanceLightmapSH {
 		Color sh[9];
+		RSE::LightmapBlendMode blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE;
 	};
 
 	class GeometryInstanceGLES3 : public RenderGeometryInstanceBase {
@@ -359,7 +360,7 @@ private:
 
 		virtual void _mark_dirty() override;
 		virtual void set_use_lightmap(RID p_lightmap_instance, const Rect2 &p_lightmap_uv_scale, int p_lightmap_slice_index) override;
-		virtual void set_lightmap_capture(const Color *p_sh9) override;
+		virtual void set_lightmap_capture(const Color *p_sh9, RSE::LightmapBlendMode p_blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE) override;
 
 		virtual void clear_light_instances() override;
 		virtual void pair_light_instance(const RID p_light_instance, RSE::LightType light_type, uint32_t placement_idx) override;

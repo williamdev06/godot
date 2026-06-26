@@ -1816,16 +1816,43 @@ void fragment_shader(in SceneData scene_data) {
 				0.429043 // l2p2 				sqrt(15.0/(16.0*PI))* PI*1.0/4.0
 		);
 
-		ambient_light += (c[0] * lightmap_captures.data[index].sh[0].rgb +
-								 c[1] * lightmap_captures.data[index].sh[1].rgb * wnormal.y +
-								 c[1] * lightmap_captures.data[index].sh[2].rgb * wnormal.z +
-								 c[1] * lightmap_captures.data[index].sh[3].rgb * wnormal.x +
-								 c[2] * lightmap_captures.data[index].sh[4].rgb * wnormal.x * wnormal.y +
-								 c[2] * lightmap_captures.data[index].sh[5].rgb * wnormal.y * wnormal.z +
-								 c[3] * lightmap_captures.data[index].sh[6].rgb * (3.0 * wnormal.z * wnormal.z - 1.0) +
-								 c[2] * lightmap_captures.data[index].sh[7].rgb * wnormal.x * wnormal.z +
-								 c[4] * lightmap_captures.data[index].sh[8].rgb * (wnormal.x * wnormal.x - wnormal.y * wnormal.y)) *
+		vec3 capture_ambient = (c[0] * lightmap_captures.data[index].sh[0].rgb +
+									   c[1] * lightmap_captures.data[index].sh[1].rgb * wnormal.y +
+									   c[1] * lightmap_captures.data[index].sh[2].rgb * wnormal.z +
+									   c[1] * lightmap_captures.data[index].sh[3].rgb * wnormal.x +
+									   c[2] * lightmap_captures.data[index].sh[4].rgb * wnormal.x * wnormal.y +
+									   c[2] * lightmap_captures.data[index].sh[5].rgb * wnormal.y * wnormal.z +
+									   c[3] * lightmap_captures.data[index].sh[6].rgb * (3.0 * wnormal.z * wnormal.z - 1.0) +
+									   c[2] * lightmap_captures.data[index].sh[7].rgb * wnormal.x * wnormal.z +
+									   c[4] * lightmap_captures.data[index].sh[8].rgb * (wnormal.x * wnormal.x - wnormal.y * wnormal.y)) *
 				scene_data.IBL_exposure_normalization;
+
+		uint capture_blend_mode = (lightmap_captures.data[index].flags >> LIGHTMAP_FLAGS_BLEND_MODE_SHIFT) & LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK;
+		if (capture_blend_mode == LIGHTMAP_BLEND_MODE_MULTIPLY) {
+			// Modulate the environment ambient by the captured SH probe (e.g. baked AO / dark indirect).
+			vec3 env_ambient = vec3(0.0);
+			if (bool(scene_data.flags & SCENE_DATA_FLAGS_USE_AMBIENT_LIGHT)) {
+				env_ambient = scene_data.ambient_light_color_energy.rgb;
+
+				if (bool(scene_data.flags & SCENE_DATA_FLAGS_USE_AMBIENT_CUBEMAP)) {
+					vec3 ambient_dir = scene_data.radiance_inverse_xform * indirect_normal;
+#ifdef USE_RADIANCE_OCTMAP_ARRAY
+					float ambient_lod = vec3_to_oct_lod(dFdx(ambient_dir), dFdy(ambient_dir), scene_data_block.data.radiance_pixel_size);
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					vec3 cubemap_ambient = textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ambient_uv, MAX_ROUGHNESS_LOD), ambient_lod).rgb;
+#else
+					float roughness_lod = MAX_ROUGHNESS_LOD;
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					vec3 cubemap_ambient = textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), ambient_uv, roughness_lod).rgb;
+#endif //USE_RADIANCE_OCTMAP_ARRAY
+					cubemap_ambient *= scene_data.IBL_exposure_normalization;
+					env_ambient = mix(env_ambient, cubemap_ambient * scene_data.ambient_light_color_energy.a, scene_data.ambient_color_sky_mix);
+				}
+			}
+			ambient_light += env_ambient * capture_ambient;
+		} else { // LIGHTMAP_BLEND_MODE_REPLACE
+			ambient_light += capture_ambient;
+		}
 
 	} else if (bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) { // has actual lightmap
 		bool uses_sh = bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_SH_LIGHTMAP);
@@ -1834,6 +1861,10 @@ void fragment_shader(in SceneData scene_data) {
 		vec3 uvw;
 		uvw.xy = uv2 * instances.data[instance_index].lightmap_uv_scale.zw + instances.data[instance_index].lightmap_uv_scale.xy;
 		uvw.z = float(slice);
+
+		// Accumulate the baked lightmap contribution separately so it can be
+		// blended with the environment ambient below (replace or multiply).
+		vec3 lightmap_ambient = vec3(0.0);
 
 		if (uses_sh) {
 			uvw.z *= 4.0; //SH textures use 4 times more data
@@ -1857,17 +1888,46 @@ void fragment_shader(in SceneData scene_data) {
 			vec3 n = normalize(lightmaps.data[ofs].normal_xform * indirect_normal);
 			float en = lightmaps.data[ofs].exposure_normalization;
 
-			ambient_light += lm_light_l0 * en;
-			ambient_light += lm_light_l1n1 * n.y * (lm_light_l0 * en * 4.0);
-			ambient_light += lm_light_l1_0 * n.z * (lm_light_l0 * en * 4.0);
-			ambient_light += lm_light_l1p1 * n.x * (lm_light_l0 * en * 4.0);
+			lightmap_ambient += lm_light_l0 * en;
+			lightmap_ambient += lm_light_l1n1 * n.y * (lm_light_l0 * en * 4.0);
+			lightmap_ambient += lm_light_l1_0 * n.z * (lm_light_l0 * en * 4.0);
+			lightmap_ambient += lm_light_l1p1 * n.x * (lm_light_l0 * en * 4.0);
 
 		} else {
 			if (sc_use_lightmap_bicubic_filter()) {
-				ambient_light += textureArray_bicubic(lightmap_textures[ofs], uvw, lightmaps.data[ofs].light_texture_size).rgb * lightmaps.data[ofs].exposure_normalization;
+				lightmap_ambient += textureArray_bicubic(lightmap_textures[ofs], uvw, lightmaps.data[ofs].light_texture_size).rgb * lightmaps.data[ofs].exposure_normalization;
 			} else {
-				ambient_light += textureLod(sampler2DArray(lightmap_textures[ofs], SAMPLER_LINEAR_CLAMP), uvw, 0.0).rgb * lightmaps.data[ofs].exposure_normalization;
+				lightmap_ambient += textureLod(sampler2DArray(lightmap_textures[ofs], SAMPLER_LINEAR_CLAMP), uvw, 0.0).rgb * lightmaps.data[ofs].exposure_normalization;
 			}
+		}
+
+		uint lightmap_blend_mode = (lightmaps.data[ofs].flags >> LIGHTMAP_FLAGS_BLEND_MODE_SHIFT) & LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK;
+		if (lightmap_blend_mode == LIGHTMAP_BLEND_MODE_MULTIPLY) {
+			// Modulate the environment ambient by the baked lightmap. This lets the
+			// bake store AO / dark indirect that darkens an otherwise dynamic
+			// environment color, giving semi-dynamic lighting on static geometry.
+			vec3 env_ambient = vec3(0.0);
+			if (bool(scene_data.flags & SCENE_DATA_FLAGS_USE_AMBIENT_LIGHT)) {
+				env_ambient = scene_data.ambient_light_color_energy.rgb;
+
+				if (bool(scene_data.flags & SCENE_DATA_FLAGS_USE_AMBIENT_CUBEMAP)) {
+					vec3 ambient_dir = scene_data.radiance_inverse_xform * indirect_normal;
+#ifdef USE_RADIANCE_OCTMAP_ARRAY
+					float ambient_lod = vec3_to_oct_lod(dFdx(ambient_dir), dFdy(ambient_dir), scene_data_block.data.radiance_pixel_size);
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					vec3 cubemap_ambient = textureLod(sampler2DArray(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), vec3(ambient_uv, MAX_ROUGHNESS_LOD), ambient_lod).rgb;
+#else
+					float roughness_lod = MAX_ROUGHNESS_LOD;
+					vec2 ambient_uv = vec3_to_oct_with_border(ambient_dir, vec2(scene_data_block.data.radiance_border_size, 1.0 - scene_data_block.data.radiance_border_size * 2.0));
+					vec3 cubemap_ambient = textureLod(sampler2D(radiance_octmap, DEFAULT_SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP), ambient_uv, roughness_lod).rgb;
+#endif //USE_RADIANCE_OCTMAP_ARRAY
+					cubemap_ambient *= scene_data.IBL_exposure_normalization;
+					env_ambient = mix(env_ambient, cubemap_ambient * scene_data.ambient_light_color_energy.a, scene_data.ambient_color_sky_mix);
+				}
+			}
+			ambient_light += env_ambient * lightmap_ambient;
+		} else { // LIGHTMAP_BLEND_MODE_REPLACE
+			ambient_light += lightmap_ambient;
 		}
 	}
 #else
@@ -2303,7 +2363,7 @@ void fragment_shader(in SceneData scene_data) {
 
 		if (bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
 			const uint ofs = instances.data[instance_index].gi_offset & 0xFFFF;
-			shadowmask_mode = lightmaps.data[ofs].flags;
+			shadowmask_mode = lightmaps.data[ofs].flags & LIGHTMAP_FLAGS_SHADOWMASK_MODE_MASK;
 
 			if (shadowmask_mode != LIGHTMAP_SHADOWMASK_MODE_NONE) {
 				const uint slice = instances.data[instance_index].gi_offset >> 16;

@@ -740,7 +740,7 @@ void RendererSceneCull::instance_set_base(RID p_instance, RID p_base) {
 				geom->geometry_instance->set_instance_shader_uniforms_offset(instance->instance_uniforms.location());
 				geom->geometry_instance->set_cast_double_sided_shadows(instance->cast_shadows == RSE::SHADOW_CASTING_SETTING_DOUBLE_SIDED);
 				if (instance->lightmap_sh.size() == 9) {
-					geom->geometry_instance->set_lightmap_capture(instance->lightmap_sh.ptr());
+					geom->geometry_instance->set_lightmap_capture(instance->lightmap_sh.ptr(), instance->lightmap_capture_blend_mode);
 				}
 
 				for (Instance *E : instance->visibility_dependencies) {
@@ -2072,6 +2072,12 @@ void RendererSceneCull::_update_instance_lightmap_captures(Instance *p_instance)
 	// This prevents ambient light from being pure black until the object has fully entered the LightmapGI's AABB.
 	const bool use_blending = geom->lightmap_captures.size() >= 2;
 
+	// Adopt the blend mode of the lightmap that contributes the most to this object's
+	// capture, so dynamic objects modulate the environment ambient the same way the
+	// surrounding static geometry does.
+	float best_blend_weight = -1.0;
+	RSE::LightmapBlendMode capture_blend_mode = RSE::LIGHTMAP_BLEND_MODE_REPLACE;
+
 	for (Instance *E : geom->lightmap_captures) {
 		Instance *lightmap = E;
 
@@ -2122,13 +2128,24 @@ void RendererSceneCull::_update_instance_lightmap_captures(Instance *p_instance)
 			}
 			accum_blend = blend;
 			inside = true;
+
+			// An interior lightmap takes priority over any exterior contribution.
+			best_blend_weight = blend;
+			capture_blend_mode = RSG::light_storage->lightmap_get_blend_mode(lightmap->base);
 		} else {
 			for (int j = 0; j < 9; j++) {
 				accum_sh[j] += sh[j] * blend;
 			}
 			accum_blend += blend;
+
+			if (blend > best_blend_weight) {
+				best_blend_weight = blend;
+				capture_blend_mode = RSG::light_storage->lightmap_get_blend_mode(lightmap->base);
+			}
 		}
 	}
+
+	p_instance->lightmap_capture_blend_mode = capture_blend_mode;
 
 	if (accum_blend > 0.0) {
 		for (int j = 0; j < 9; j++) {
@@ -2140,7 +2157,7 @@ void RendererSceneCull::_update_instance_lightmap_captures(Instance *p_instance)
 	}
 
 	ERR_FAIL_NULL(geom->geometry_instance);
-	geom->geometry_instance->set_lightmap_capture(p_instance->lightmap_sh.ptr());
+	geom->geometry_instance->set_lightmap_capture(p_instance->lightmap_sh.ptr(), p_instance->lightmap_capture_blend_mode);
 }
 
 void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_index, Instance *p_instance, const Transform3D p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal, bool p_cam_vaspect) {
@@ -3226,7 +3243,7 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
 						}
 						ERR_FAIL_NULL(geom->geometry_instance);
 						cull_data.cull->lock.lock();
-						geom->geometry_instance->set_lightmap_capture(sh);
+						geom->geometry_instance->set_lightmap_capture(sh, idata.instance->lightmap_capture_blend_mode);
 						cull_data.cull->lock.unlock();
 						idata.instance->last_frame_pass = frame_number;
 					}

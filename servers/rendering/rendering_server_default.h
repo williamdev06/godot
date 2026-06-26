@@ -545,6 +545,9 @@ public:
 	FUNC1R(RSE::ShadowmaskMode, lightmap_get_shadowmask_mode, RID)
 	FUNC2(lightmap_set_shadowmask_mode, RID, RSE::ShadowmaskMode)
 
+	FUNC1R(RSE::LightmapBlendMode, lightmap_get_blend_mode, RID)
+	FUNC2(lightmap_set_blend_mode, RID, RSE::LightmapBlendMode)
+
 	/* Shadow Atlas */
 	FUNC0R(RID, shadow_atlas_create)
 	FUNC3(shadow_atlas_set_size, RID, int, bool)

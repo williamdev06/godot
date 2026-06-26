@@ -52,6 +52,12 @@ public:
 		SHADOWMASK_MODE_ONLY,
 	};
 
+	// How the baked lightmap is combined with the environment ambient light.
+	enum BlendMode {
+		BLEND_MODE_REPLACE, // Lightmap overrides the environment ambient.
+		BLEND_MODE_MULTIPLY, // Lightmap modulates the environment ambient (e.g. baked AO / dark indirect).
+	};
+
 private:
 	// The 'merged' texture atlases actually used by the renderer.
 	Ref<TextureLayered> combined_light_texture;
@@ -117,6 +123,9 @@ public:
 
 	void update_shadowmask_mode(ShadowmaskMode p_mode);
 	ShadowmaskMode get_shadowmask_mode() const;
+
+	void update_blend_mode(BlendMode p_mode);
+	BlendMode get_blend_mode() const;
 
 	bool is_interior() const;
 	float get_baked_exposure() const;
@@ -206,6 +215,7 @@ private:
 	bool directional = false;
 	bool use_texture_for_bounces = true;
 	LightmapGIData::ShadowmaskMode shadowmask_mode = LightmapGIData::SHADOWMASK_MODE_NONE;
+	LightmapGIData::BlendMode blend_mode = LightmapGIData::BLEND_MODE_REPLACE;
 	GenerateProbes gen_probes = GENERATE_PROBES_SUBDIV_8;
 	Ref<CameraAttributes> camera_attributes;
 
@@ -306,6 +316,9 @@ public:
 	void set_shadowmask_mode(LightmapGIData::ShadowmaskMode p_mode);
 	LightmapGIData::ShadowmaskMode get_shadowmask_mode() const;
 
+	void set_blend_mode(LightmapGIData::BlendMode p_mode);
+	LightmapGIData::BlendMode get_blend_mode() const;
+
 	void set_use_texture_for_bounces(bool p_enable);
 	bool is_using_texture_for_bounces() const;
 
@@ -361,6 +374,7 @@ public:
 };
 
 VARIANT_ENUM_CAST(LightmapGIData::ShadowmaskMode);
+VARIANT_ENUM_CAST(LightmapGIData::BlendMode);
 VARIANT_ENUM_CAST(LightmapGI::BakeQuality);
 VARIANT_ENUM_CAST(LightmapGI::GenerateProbes);
 VARIANT_ENUM_CAST(LightmapGI::BakeError);

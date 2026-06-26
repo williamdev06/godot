@@ -206,6 +206,9 @@ public:
 	virtual RSE::ShadowmaskMode lightmap_get_shadowmask_mode(RID p_lightmap) override { return RSE::SHADOWMASK_MODE_NONE; }
 	virtual void lightmap_set_shadowmask_mode(RID p_lightmap, RSE::ShadowmaskMode p_mode) override {}
 
+	virtual RSE::LightmapBlendMode lightmap_get_blend_mode(RID p_lightmap) override { return RSE::LIGHTMAP_BLEND_MODE_REPLACE; }
+	virtual void lightmap_set_blend_mode(RID p_lightmap, RSE::LightmapBlendMode p_mode) override {}
+
 	/* LIGHTMAP INSTANCE */
 
 	bool owns_lightmap_instance(RID p_rid) { return lightmap_instance_owner.owns(p_rid); }

@@ -430,6 +430,9 @@ public:
 	virtual RSE::ShadowmaskMode lightmap_get_shadowmask_mode(RID p_lightmap) = 0;
 	virtual void lightmap_set_shadowmask_mode(RID p_lightmap, RSE::ShadowmaskMode p_mode) = 0;
 
+	virtual RSE::LightmapBlendMode lightmap_get_blend_mode(RID p_lightmap) = 0;
+	virtual void lightmap_set_blend_mode(RID p_lightmap, RSE::LightmapBlendMode p_mode) = 0;
+
 	/* PARTICLES API */
 
 	virtual RID particles_create() = 0;
