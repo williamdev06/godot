@@ -5,6 +5,12 @@
 #define MAX_VOXEL_GI_INSTANCES 8
 #define MAX_VIEWS 2
 
+#ifdef MODE_RENDER_DEPTH
+#define IN_DEPTH_PASS true
+#else
+#define IN_DEPTH_PASS false
+#endif
+
 #extension GL_KHR_shader_subgroup_ballot : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 
