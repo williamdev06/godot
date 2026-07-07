@@ -13,6 +13,12 @@
 #define SHADER_IS_SRGB false
 #define SHADER_SPACE_FAR 0.0
 
+#ifdef MODE_RENDER_DEPTH
+#define IN_DEPTH_PASS true
+#else
+#define IN_DEPTH_PASS false
+#endif
+
 #ifdef SHADOW_PASS
 #define IN_SHADOW_PASS true
 #else
@@ -825,6 +831,12 @@ void main() {
 
 #define SHADER_IS_SRGB false
 #define SHADER_SPACE_FAR 0.0
+
+#ifdef MODE_RENDER_DEPTH
+#define IN_DEPTH_PASS true
+#else
+#define IN_DEPTH_PASS false
+#endif
 
 #ifdef SHADOW_PASS
 #define IN_SHADOW_PASS true
