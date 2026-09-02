@@ -5,10 +5,15 @@
 #define MAX_VOXEL_GI_INSTANCES 8
 #define MAX_VIEWS 2
 
-#ifdef MODE_RENDER_DEPTH
-#define IN_DEPTH_PASS true
+// True for the depth-family variants that make up the *camera* depth prepass
+// (plain depth, and the normal/roughness prepass). MODE_RENDER_DEPTH is also set
+// for shadow rendering and for the material/SDF/voxel-GI bakes, so those are
+// excluded here (bakes at compile time; shadows at runtime via the shadow flag,
+// since the depth prepass and shadow passes share the same shader variants).
+#if defined(MODE_RENDER_DEPTH) && !defined(MODE_RENDER_MATERIAL) && !defined(MODE_RENDER_SDF) && !defined(MODE_RENDER_VOXEL_GI)
+#define IN_DEPTH_PREPASS_VARIANT true
 #else
-#define IN_DEPTH_PASS false
+#define IN_DEPTH_PREPASS_VARIANT false
 #endif
 
 #extension GL_KHR_shader_subgroup_ballot : enable

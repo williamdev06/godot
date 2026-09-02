@@ -13,11 +13,11 @@
 #define SHADER_IS_SRGB false
 #define SHADER_SPACE_FAR 0.0
 
-#ifdef MODE_RENDER_DEPTH
-#define IN_DEPTH_PASS true
-#else
+// The Forward Mobile renderer has no camera depth prepass (opaque geometry is
+// drawn directly in the color pass), so there is no depth prepass for this to be
+// true in. MODE_RENDER_DEPTH here only means shadow casting or the material bake,
+// which are deliberately excluded, so IN_DEPTH_PASS is always false on mobile.
 #define IN_DEPTH_PASS false
-#endif
 
 #ifdef SHADOW_PASS
 #define IN_SHADOW_PASS true
@@ -832,11 +832,11 @@ void main() {
 #define SHADER_IS_SRGB false
 #define SHADER_SPACE_FAR 0.0
 
-#ifdef MODE_RENDER_DEPTH
-#define IN_DEPTH_PASS true
-#else
+// The Forward Mobile renderer has no camera depth prepass (opaque geometry is
+// drawn directly in the color pass), so there is no depth prepass for this to be
+// true in. MODE_RENDER_DEPTH here only means shadow casting or the material bake,
+// which are deliberately excluded, so IN_DEPTH_PASS is always false on mobile.
 #define IN_DEPTH_PASS false
-#endif
 
 #ifdef SHADOW_PASS
 #define IN_SHADOW_PASS true
